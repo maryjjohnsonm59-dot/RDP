@@ -60,29 +60,45 @@ jobs:
           msiexec /i "$installerPath" /qn /norestart
           Remove-Item $installerPath -Force
 
-      - name: Establish Tailscale Connection
-        run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
-            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} `
-            --hostname=gh-runner-$env:GITHUB_RUN_ID
-
-          $tsIP = $null
-          for ($i=0; $i -lt 10; $i++) {
-              $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-              if ($tsIP) { break }
-              Start-Sleep 5
-          }
-
-          if (-not $tsIP) {
-              Write-Error "Tailscale IP not assigned"
-              exit 1
-          }
-
-          echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
-
       - name: Verify RDP Accessibility
         run: |
           Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
+      - name: Establish Tailscale Connection
+        run: |
+          $paths = @(
+            "$env:ProgramFiles\Tailscale\tailscale.exe",
+            "$env:ProgramFiles\Tailscale\tailscale-ipn.exe",
+            "$env:ProgramFiles(x86)\Tailscale\tailscale.exe"
+          )
+
+          $tsExe = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+          if (-not $tsExe) {
+            Write-Error "Tailscale executable not found"
+            exit 1
+          }
+
+          Write-Host "Using Tailscale at: $tsExe"
+
+          & $tsExe up `
+            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} `
+            --hostname=gh-runner-$env:GITHUB_RUN_ID `
+            --accept-dns=false `
+            --accept-routes=false
+
+          $tsIP = $null
+          for ($i = 0; $i -lt 12; $i++) {
+            $tsIP = & $tsExe ip -4
+            if ($tsIP) { break }
+            Start-Sleep 5
+          }
+
+          if (-not $tsIP) {
+            Write-Error "Tailscale IP not assigned"
+            exit 1
+          }
+
+          echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
       - name: Maintain Connection
         run: |
