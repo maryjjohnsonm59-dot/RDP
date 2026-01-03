@@ -60,9 +60,6 @@ jobs:
           msiexec /i "$installerPath" /qn /norestart
           Remove-Item $installerPath -Force
 
-      - name: Verify RDP Accessibility
-        run: |
-          Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
       - name: Establish Tailscale Connection
         run: |
           $paths = @(
@@ -99,6 +96,10 @@ jobs:
           }
 
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
+          
+      - name: Verify RDP Accessibility
+        run: |
+          Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
 
       - name: Maintain Connection
         run: |
